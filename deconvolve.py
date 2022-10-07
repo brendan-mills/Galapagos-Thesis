@@ -53,7 +53,7 @@ def deconvolve_padded(st, padding_hrs=3, info=info):
     
     return st_decon
     
-st = create_padded_stream(-30,180, 3)# will do days 0,1,2 with padding from -1 and 3
+st = create_padded_stream(60,90, 3)# will do days 0,1,2 with padding from -1 and 3
 st.plot()
 print('Done Creating Stream')
 st_d = deconvolve_padded(st, 3)
