@@ -11,6 +11,7 @@ import obspy as opy
 from obspy import UTCDateTime
 from obspy.clients.fdsn import Client
 import time
+import os
 
 start_timer = time.time()
 t0 = UTCDateTime("2018-06-26T0:0:00.000")
@@ -53,11 +54,11 @@ def deconvolve_padded(st, padding_hrs=3, info=info):
     
     return st_decon
     
-st = create_padded_stream(60,90, 3)# will do days 0,1,2 with padding from -1 and 3
-st.plot()
-print('Done Creating Stream')
-st_d = deconvolve_padded(st, 3)
-st_d.plot()
+# st = create_padded_stream(60,90, 3)# will do days 0,1,2 with padding from -1 and 3
+# st.plot()
+# print('Done Creating Stream')
+# st_d = deconvolve_padded(st, 3)
+# st_d.plot()
 
 
 def deconvolve_day(day):
@@ -99,8 +100,46 @@ def deconvolve_day(day):
     st_raw.plot()
     
     st_decon.plot()
-
+    
+def decon_all():#this func loops through all the files in a directory and deconvolves them all
+    for file in os.listdir('/Volumes/LaCie/SIERRA_NEGRA/SN_GALAPAGOS/'):
+        
+        print(f'Begin {file}')
+        parts = file.split('.')#get the file information form the name
+        net = parts[0]
+        sta = parts[1]
+        chan = parts[3]
+        year = parts[4]
+        day = parts[5]
+        info = info = '{}.{}..{}.{}'.format(net, sta, chan, year)
+        out = f'{info}.{day}.Decon.mseed'
+        
+        try:
+            inventory = client.get_stations(network=net, station=sta, channel=chan, location='*', starttime=t0 + int(day)*tdur, endtime=t0 + (int(day)+1)*tdur, level = 'response')
+        except:
+            continue
+        st = opy.read('/Volumes/LaCie/SIERRA_NEGRA/SN_GALAPAGOS/'+file)
+        
+        if bool(st.get_gaps()):
+            print("This one has gaps")
+            out = f'{info}.{day}wGaps.Decon.mseed'
+            
+        if len(st[0]) == 1:
+            print('This day is empty')
+            continue
+            
+        if out in os.listdir('/Volumes/LaCie/SN_Thesis/Deconvolved/'):
+            print('Decon file already found')
+            continue
+            
+        st_decon = st.copy().remove_response(inventory = inventory)
+        out_name = f'/Volumes/LaCie/SN_Thesis/Deconvolved/{out}'
+        st_decon.write(out_name)
+        print(f'Wrote to {out_name}')
+        
+decon_all()
     
 end_timer = time.time()
 print('This all took {} seconds'.format( round(end_timer-start_timer,2)) )
+
     
