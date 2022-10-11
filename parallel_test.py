@@ -33,6 +33,7 @@ def decon_file(file):
         inventory = client.get_stations(network=net, station=sta, channel=chan, location='*', starttime=t0 + int(day)*tdur, endtime=t0 + (int(day)+1)*tdur, level = 'response')
     except:
         print(f'No response for {file}',flush=True)
+        return
     st = opy.read('/Volumes/LaCie/SIERRA_NEGRA/SN_GALAPAGOS/'+file)
     
     if bool(st.get_gaps()):
