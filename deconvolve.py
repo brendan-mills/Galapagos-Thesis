@@ -46,14 +46,43 @@ def deconvolve_padded(st, padding_hrs=3, info=info):
     start_cut = st[0].stats.starttime + padding_hrs*3600
     end_cut = st[0].stats.endtime - padding_hrs*3600
     
-    inventory = client.get_stations(network=netsel, station=stasel, channel=chnsel, location='*', starttime=st[0].stats.starttime, endtime=st[0].stats.endtime, level = 'response')
+    parts = info.split('.')#get the file information form the name
+    net = parts[0]
+    sta = parts[1]
+    chan = parts[3]
+    
+    inventory = client.get_stations(network=net, station=sta, channel=chan, location='*', starttime=start_cut, endtime=end_cut, level = 'response')
+    print(inventory)
     st_decon = st.copy().remove_response(inventory = inventory)#removes response
     st_decon.trim(starttime = start_cut,endtime = end_cut)#trims to the days
     st_decon.detrend('demean')
-    st_decon.write(f'/Volumes/LaCie/SN_Thesis/Deconvolved/{info}.{st[0].stats.starttime.julday+1}to{st[0].stats.endtime.julday-1}.Decon.mseed')
+    st_decon.write(f'/Volumes/LaCie/SN_Thesis/Decon_Ranges/{info}.{st_decon[0].stats.starttime.julday}to{st_decon[0].stats.endtime.julday}.Decon.mseed')
     
     return st_decon
+
+def decon_range(start_day, end_day, padding_hrs=3, info=info):
+    st = create_padded_stream(start_day, end_day, padding_hrs, info)
+    print('Done Creating Stream')
+    st_d = deconvolve_padded(st, padding_hrs,info)
+    return st_d
     
+# ranges = [(-10, 20),(20, 50), (50, 80)]
+ranges = [(0,2),(2,4)]
+stas = ['SN14']
+chnsel = 'HHZ'
+
+for sta in stas:
+    for days in ranges:
+        info = '{}.{}..{}.{}'.format(netsel, sta, chnsel, year)
+        print(info)
+        try:
+            d = opy.read(f'/Volumes/LaCie/SN_Thesis/Decon_Ranges/{info}.{t0.julday + days[0]}to{t0.julday + days[1]}.Decon.mseed')
+            print('Found File')
+        except:
+            d = decon_range(days[0],days[1],3,info)
+        print(d)
+        d.plot()
+        
 # st = create_padded_stream(60,90, 3)# will do days 0,1,2 with padding from -1 and 3
 # st.plot()
 # print('Done Creating Stream')
@@ -137,7 +166,7 @@ def decon_all():#this func loops through all the files in a directory and deconv
         st_decon.write(out_name)
         print(f'Wrote to {out_name}')
         
-decon_all()
+# decon_all()
     
 end_timer = time.time()
 print('This all took {} seconds'.format( round(end_timer-start_timer,2)) )
