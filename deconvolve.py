@@ -52,7 +52,7 @@ def deconvolve_padded(st, padding_hrs=3, info=info):
     chan = parts[3]
     
     inventory = client.get_stations(network=net, station=sta, channel=chan, location='*', starttime=start_cut, endtime=end_cut, level = 'response')
-    print(inventory)
+    
     st_decon = st.copy().remove_response(inventory = inventory)#removes response
     st_decon.trim(starttime = start_cut,endtime = end_cut)#trims to the days
     st_decon.detrend('demean')
@@ -66,15 +66,13 @@ def decon_range(start_day, end_day, padding_hrs=3, info=info):
     st_d = deconvolve_padded(st, padding_hrs,info)
     return st_d
     
-# ranges = [(-10, 20),(20, 50), (50, 80)]
-ranges = [(0,2),(2,4)]
-stas = ['SN14']
+ranges = [(-10, 20),(20, 50), (50, 80)]
+stas = ['SN07','SN04','SN05','SN06','SN14','SN12']
 chnsel = 'HHZ'
 
 for sta in stas:
     for days in ranges:
         info = '{}.{}..{}.{}'.format(netsel, sta, chnsel, year)
-        print(info)
         try:
             d = opy.read(f'/Volumes/LaCie/SN_Thesis/Decon_Ranges/{info}.{t0.julday + days[0]}to{t0.julday + days[1]}.Decon.mseed')
             print('Found File')
