@@ -61,13 +61,17 @@ def deconvolve_padded(st, padding_hrs=3, info=info):
     return st_decon
 
 def decon_range(start_day, end_day, padding_hrs=3, info=info):
-    st = create_padded_stream(start_day, end_day, padding_hrs, info)
-    print('Done Creating Stream')
-    st_d = deconvolve_padded(st, padding_hrs,info)
-    return st_d
-    
-ranges = [(-10, 20),(20, 50), (50, 80)]
-stas = ['SN07','SN04','SN05','SN06','SN14','SN12']
+    #first check to see if its already been done
+    print(f'{info}.{start_day+177}to{end_day+177}.Decon.mseed')
+    if f'{info}.{start_day+177}to{end_day+177}.Decon.mseed' in os.listdir('/Volumes/LaCie/SN_Thesis/Decon_Ranges/'):
+        print("Found Decon Range")
+    else:
+        st = create_padded_stream(start_day, end_day, padding_hrs, info)
+        print('Done Creating Stream')
+        st_d = deconvolve_padded(st, padding_hrs,info)
+        
+ranges = [(-10, 10),(10, 30), (30, 50), (50, 70), (70, 90)]
+stas = ['SN14','SN12']
 chnsel = 'HHZ'
 
 for sta in stas:
@@ -77,9 +81,7 @@ for sta in stas:
             d = opy.read(f'/Volumes/LaCie/SN_Thesis/Decon_Ranges/{info}.{t0.julday + days[0]}to{t0.julday + days[1]}.Decon.mseed')
             print('Found File')
         except:
-            d = decon_range(days[0],days[1],3,info)
-        print(d)
-        d.plot()
+            decon_range(days[0],days[1],3,info)
         
 # st = create_padded_stream(60,90, 3)# will do days 0,1,2 with padding from -1 and 3
 # st.plot()
