@@ -43,6 +43,23 @@ def create_padded_stream(start_day, end_day, padding_hrs=3, info=info):
     return st_trim
 
 def deconvolve_padded(st, padding_hrs=3, info=info):
+    '''
+    Parameters
+    ----------
+    st : Obspy stream
+        the padded stream that we want to remove instrument response from
+    padding_hrs : int, optional
+        how many hours is the stream padded with, they will be taken offa the 
+        end. The default is 3.
+    info : str, optional
+        Station information. The default is info.
+
+    Returns
+    -------
+    st_decon : TYPE
+        The deconvolved stream, instrument response has been removed.
+
+    '''
     start_cut = st[0].stats.starttime + padding_hrs*3600
     end_cut = st[0].stats.endtime - padding_hrs*3600
     
@@ -56,117 +73,88 @@ def deconvolve_padded(st, padding_hrs=3, info=info):
     st_decon = st.copy().remove_response(inventory = inventory)#removes response
     st_decon.trim(starttime = start_cut,endtime = end_cut)#trims to the days
     st_decon.detrend('demean')
-    st_decon.write(f'/Volumes/LaCie/SN_Thesis/Decon_Ranges/{info}.{st_decon[0].stats.starttime.julday}to{st_decon[0].stats.endtime.julday}.Decon.mseed')
-    
+    file_name = f'/Volumes/LaCie/SN_Thesis/Decon_Ranges/{info}.{st_decon[0].stats.starttime.julday}to{st_decon[0].stats.endtime.julday}.Decon.mseed'
+    print(file_name)
+    st_decon.write(file_name)
     return st_decon
 
 def decon_range(start_day, end_day, padding_hrs=3, info=info):
+    '''
+    Parameters
+    ----------
+    start_day : int
+        Midnight on the first day you want a stream
+    end_day : int
+        midnight on the first day after your desired stream
+    padding_hrs : int, optional
+        How much padding you want to leave space for deconvolving. The default is 3.
+    info : str, optional
+        Station information. The default is info.
+
+    Returns -- None.
+
+    '''
     #first check to see if its already been done
     print(f'{info}.{start_day+177}to{end_day+177}.Decon.mseed')
-    if f'{info}.{start_day+177}to{end_day+177}.Decon.mseed' in os.listdir('/Volumes/LaCie/SN_Thesis/Decon_Ranges/'):
-        print("Found Decon Range")
-    else:
-        st = create_padded_stream(start_day, end_day, padding_hrs, info)
-        print('Done Creating Stream')
-        st_d = deconvolve_padded(st, padding_hrs,info)
+    st = create_padded_stream(start_day, end_day, padding_hrs, info)
+    print('Done Creating Stream')
+    deconvolve_padded(st, padding_hrs,info)
         
-ranges = [(-10, 10),(10, 30), (30, 50), (50, 70), (70, 90)]
-stas = ['SN14','SN12']
+ranges = [(0,1)]
+stas = ['SN07']
 chnsel = 'HHZ'
 
 for sta in stas:
+    info = '{}.{}..{}.{}'.format(netsel, sta, chnsel, year)
     for days in ranges:
-        info = '{}.{}..{}.{}'.format(netsel, sta, chnsel, year)
         try:
-            d = opy.read(f'/Volumes/LaCie/SN_Thesis/Decon_Ranges/{info}.{t0.julday + days[0]}to{t0.julday + days[1]}.Decon.mseed')
-            print('Found File')
+            file_name = f'/Volumes/LaCie/SN_Thesis/Decon_Ranges/{info}.{t0.julday + days[0]}to{t0.julday + days[1]}.Decon.mseed'
+            d = opy.read(file_name)
+            print(f'Found File: {file_name}')
         except:
-            decon_range(days[0],days[1],3,info)
-        
-# st = create_padded_stream(60,90, 3)# will do days 0,1,2 with padding from -1 and 3
-# st.plot()
-# print('Done Creating Stream')
-# st_d = deconvolve_padded(st, 3)
-# st_d.plot()
+            decon_range(days[0],days[1]+1,3,info)
 
 
-def deconvolve_day(day):
-    t1 = t0 + tdur*day #the start of the day we care about
-    t2 = t0 + (day+1)*tdur#the end of the day we care about
-    jday = t1.julday
+# def deconvolve_day(day):
+#     t1 = t0 + tdur*day #the start of the day we care about
+#     t2 = t0 + (day+1)*tdur#the end of the day we care about
+#     jday = t1.julday
     
-    inventory = client.get_stations(network=netsel, station=stasel, channel=chnsel, location='*', starttime=t0, endtime=t0 + tdur, level = 'response')
+#     inventory = client.get_stations(network=netsel, station=stasel, channel=chnsel, location='*', starttime=t0, endtime=t0 + tdur, level = 'response')
     
-    stream_raw_name = '/Volumes/LaCie/SIERRA_NEGRA/SN_GALAPAGOS/{}.{}.mseed'.format(info,jday-1)
-    stream_raw_name2 = '/Volumes/LaCie/SIERRA_NEGRA/SN_GALAPAGOS/{}.{}.mseed'.format(info,jday)
-    stream_raw_name3 = '/Volumes/LaCie/SIERRA_NEGRA/SN_GALAPAGOS/{}.{}.mseed'.format(info,jday+1)
+#     stream_raw_name = '/Volumes/LaCie/SIERRA_NEGRA/SN_GALAPAGOS/{}.{}.mseed'.format(info,jday-1)
+#     stream_raw_name2 = '/Volumes/LaCie/SIERRA_NEGRA/SN_GALAPAGOS/{}.{}.mseed'.format(info,jday)
+#     stream_raw_name3 = '/Volumes/LaCie/SIERRA_NEGRA/SN_GALAPAGOS/{}.{}.mseed'.format(info,jday+1)
     
-    print('Reading Streams')
-    st_raw = opy.read(stream_raw_name)
-    st_raw2 = opy.read(stream_raw_name2)
-    st_raw3 = opy.read(stream_raw_name3)
-    print('Adding Streams')
-    st_raw = st_raw + st_raw2 + st_raw3 #add the three strings together
+#     print('Reading Streams')
+#     st_raw = opy.read(stream_raw_name)
+#     st_raw2 = opy.read(stream_raw_name2)
+#     st_raw3 = opy.read(stream_raw_name3)
+#     print('Adding Streams')
+#     st_raw = st_raw + st_raw2 + st_raw3 #add the three strings together
     
-    print('Padding Streams')
-    hour_padding = 3#hours to pad on each side
-    pad_left =  t1- hour_padding*3600
-    pad_right = t2 + hour_padding*3600
-    st_raw.trim(starttime = pad_left , endtime = pad_right)
+#     print('Padding Streams')
+#     hour_padding = 3#hours to pad on each side
+#     pad_left =  t1- hour_padding*3600
+#     pad_right = t2 + hour_padding*3600
+#     st_raw.trim(starttime = pad_left , endtime = pad_right)
     
-    print('Merging Streams')
-    st_raw.merge()
+#     print('Merging Streams')
+#     st_raw.merge()
     
-    print('Deconvolving')
-    st_decon = st_raw.copy().remove_response(inventory = inventory)
+#     print('Deconvolving')
+#     st_decon = st_raw.copy().remove_response(inventory = inventory)
     
-    st_decon.trim(starttime = t1,endtime = t2)
-    st_decon.detrend('demean')
+#     st_decon.trim(starttime = t1,endtime = t2)
+#     st_decon.detrend('demean')
     
-    decon_name = '/Volumes/LaCie/SN_Thesis/Deconvolved/{}.{}.Decon.mseed'.format(info,jday)
-    st_decon.write(decon_name)
-    print('Done')
-    st_raw.plot()
+#     decon_name = '/Volumes/LaCie/SN_Thesis/Deconvolved/{}.{}.Decon.mseed'.format(info,jday)
+#     st_decon.write(decon_name)
+#     print('Done')
+#     st_raw.plot()
     
-    st_decon.plot()
-    
-def decon_all():#this func loops through all the files in a directory and deconvolves them all
-    for file in os.listdir('/Volumes/LaCie/SIERRA_NEGRA/SN_GALAPAGOS/'):
-        
-        print(f'Begin {file}')
-        parts = file.split('.')#get the file information form the name
-        net = parts[0]
-        sta = parts[1]
-        chan = parts[3]
-        year = parts[4]
-        day = parts[5]
-        info = info = '{}.{}..{}.{}'.format(net, sta, chan, year)
-        out = f'{info}.{day}.Decon.mseed'
-        
-        try:
-            inventory = client.get_stations(network=net, station=sta, channel=chan, location='*', starttime=t0 + int(day)*tdur, endtime=t0 + (int(day)+1)*tdur, level = 'response')
-        except:
-            continue
-        st = opy.read('/Volumes/LaCie/SIERRA_NEGRA/SN_GALAPAGOS/'+file)
-        
-        if bool(st.get_gaps()):
-            print("This one has gaps")
-            out = f'{info}.{day}wGaps.Decon.mseed'
-            
-        if len(st[0]) == 1:
-            print('This day is empty')
-            continue
-            
-        if out in os.listdir('/Volumes/LaCie/SN_Thesis/Deconvolved/'):
-            print('Decon file already found')
-            continue
-            
-        st_decon = st.copy().remove_response(inventory = inventory)
-        out_name = f'/Volumes/LaCie/SN_Thesis/Deconvolved/{out}'
-        st_decon.write(out_name)
-        print(f'Wrote to {out_name}')
-        
-# decon_all()
+#     st_decon.plot()
+
     
 end_timer = time.time()
 print('This all took {} seconds'.format( round(end_timer-start_timer,2)) )
