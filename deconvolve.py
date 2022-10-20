@@ -69,7 +69,7 @@ def deconvolve_padded(st, padding_hrs=3, info=info):
     st_decon = st.copy().remove_response(inventory = inventory)#removes response
     st_decon.trim(starttime = start_cut,endtime = end_cut)#trims to the days
     st_decon.detrend('demean')
-    file_name = f'/Volumes/LaCie/SN_Thesis/Decon_Ranges/{info}.{st_decon[0].stats.starttime.julday}to{st_decon[0].stats.endtime.julday}.Decon.mseed'
+    file_name = f'/Volumes/LaCie/SN_Thesis/Decon_Ranges/{info}.{st_decon[0].stats.starttime.julday}.{st_decon[0].stats.endtime.julday}.Decon.mseed'
     print(file_name)
     st_decon.write(file_name)
     return st_decon
@@ -91,7 +91,7 @@ def decon_range(start_day, end_day, padding_hrs=3, info=info):
 
     '''
     #first check to see if its already been done
-    print(f'{info}.{start_day+177}to{end_day+177}.Decon.mseed')
+    print(f'{info}.{start_day+177}.{end_day+177}.Decon.mseed')
     st = create_padded_stream(start_day, end_day, padding_hrs, info)
     print('Done Creating Stream')
     deconvolve_padded(st, padding_hrs,info)
@@ -104,7 +104,7 @@ for sta in stas:
     info = '{}.{}..{}.{}'.format(netsel, sta, chnsel, year)
     for days in ranges:
         try:
-            file_name = f'/Volumes/LaCie/SN_Thesis/Decon_Ranges/{info}.{t0.julday + days[0]}to{t0.julday + days[1]}.Decon.mseed'
+            file_name = f'/Volumes/LaCie/SN_Thesis/Decon_Ranges/{info}.{t0.julday + days[0]}.{t0.julday + days[1]}.Decon.mseed'
             d = opy.read(file_name)
             print(f'Found File: {file_name}')
         except:
