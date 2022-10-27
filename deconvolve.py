@@ -96,8 +96,8 @@ def decon_range(start_day, end_day, padding_hrs=3, info=info):
     print('Done Creating Stream')
     deconvolve_padded(st, padding_hrs,info)
         
-ranges = [(0,1)]
-stas = ['SN07']
+ranges = [(-10,9)]
+stas = ['SN11']
 chnsel = 'HHZ'
 
 for sta in stas:
