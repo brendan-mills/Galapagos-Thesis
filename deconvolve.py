@@ -155,4 +155,7 @@ for sta in stas:
 end_timer = time.time()
 print('This all took {} seconds'.format( round(end_timer-start_timer,2)) )
 
-    
+# prefilt = [0.0001, 0.0002, samp_rate/2-2, samp]
+# prefilt = [0.5, 0.7, 9, 10]
+# st.remove_response(inventory=inventory, pre_filt= pre_filt, output = 'VEL', waterlevel= None)
+# 

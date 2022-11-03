@@ -52,7 +52,7 @@ def deconvolve_prefilt(st):
         st_d = st[i].remove_response(inventory=inventory, pre_filt=pre_filt, output='VEL')#removes response
         st_d.detrend('demean')
         st_decon.append(st_d)
-    file_name = f'/Volumes/LaCie/SN_Thesis/Onset_Bandpass1_Decon/{stas}.{pre_filt}.Decon.mseed'
+    file_name = '/Volumes/LaCie/SN_Thesis/Day177/8G.Array..HHZ.2018.177.BP1.Decon.mseed'
     print(file_name)
     st_decon.write(file_name)
     return st_decon
