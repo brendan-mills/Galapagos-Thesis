@@ -26,7 +26,7 @@ year = 2018
 info = '{}.{}..{}.{}'.format(netsel, stasel, chnsel, year)
 client = Client("IRIS")
 
-st_bp = opy.read('/Volumes/LaCie/SN_Thesis/Day177/8G.Array..HHZ.2018.177.BP1.Decon.mseed')
+st_bp = opy.read('/Volumes/LaCie/SN_Thesis/Day177/8G.Array..HHZ.2018.177.BP4.mseed')
 st_d = opy.read('/Volumes/LaCie/SN_Thesis/Day177/8G.Array..HHZ.2018.177.Decon.mseed')
 st_raw = opy.read('/Volumes/LaCie/SN_Thesis/Day177/8G.Array..HHZ.2018.177.mseed')
 
@@ -40,6 +40,6 @@ st.trim(starttime=t1, endtime=t2)
 trace = st[2]
 df = trace.stats.sampling_rate
 
-cft = classic_sta_lta(trace.data, int(10 * df), int(100 * df))
-plot_trigger(trace, cft, 5, 0.5)
+cft = classic_sta_lta(trace.data, int(1 * df), int(10 * df))
+plot_trigger(trace, cft, 6, 1)
 
