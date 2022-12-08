@@ -95,28 +95,30 @@ def plot_covar( spec_w, title = '' ):
         times / 3600, frequencies, spectral_width.T, rasterized=True, cmap="viridis_r"
     )
     # ax.set_ylim([0, stream[0].stats.sampling_rate / 2])
-    ax.set_ylim([0.5, 10])
+    
     ax.set_xlabel("Hours")
     ax.set_ylabel("Frequency (Hz)")
     title = f"Spectral width with preprocessing, Win-{window_duration_sec}sec, avg-{average} {title}"
     ax.set_title(title)
+    # ax.set_yscale('log')
+    ax.set_ylim([0, 4])
     plt.colorbar(img).set_label("Covariance matrix spectral width")
     plot_time(ax, t1, swarm)
     plot_time(ax,t1, trem)
-    plt.savefig('../Figs/'+title, format='jpg', dpi=400, bbox_inches='tight')
+    plt.savefig('../Figs/'+title+'.jpg', format='jpg', dpi=400, bbox_inches='tight')
     plt.show()
     
-files = ['8G.Array..HHZ.2018.177.mseed', 
-          '8G.Array..HHZ.2018.177.Decon.mseed', 
-          '8G.Array..HHZ.2018.177.BP1.Decon.mseed', 
-          '8G.Array..HHZ.2018.177.BP2.Decon.mseed', 
-          '8G.Array..HHZ.2018.177.BP3.Decon.mseed', ]
+files = ['8G.Array..HHZ.2018.177', 
+          '8G.Array..HHZ.2018.177.Decon', 
+          '8G.Array..HHZ.2018.177.BP1', 
+          '8G.Array..HHZ.2018.177.BP2', 
+          '8G.Array..HHZ.2018.177.BP3' ]
 
 def crunch_all():
     data = []
     for f in files:
         print('Reading '+f)
-        st = opy.read('/Volumes/LaCie/SN_Thesis/Day177/'+f)
+        st = opy.read('/Volumes/LaCie/SN_Thesis/Day177/'+f+'.mseed')
         st.trim(starttime=t1, endtime=t2)
         print('Starting covariance calculation')
         spec_w = calc_covar(st)
