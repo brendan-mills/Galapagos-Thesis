@@ -96,7 +96,7 @@ def plot_covar( spec_w, title = '' ):
     )
     # ax.set_ylim([0, stream[0].stats.sampling_rate / 2])
     
-    ax.set_xlabel("Hours")
+    ax.set_xlabel(f"Time [hours] since {t1}")
     ax.set_ylabel("Frequency (Hz)")
     title = f"Spectral width with preprocessing, Win-{window_duration_sec}sec, avg-{average} {title}"
     ax.set_title(title)
@@ -112,7 +112,8 @@ files = ['8G.Array..HHZ.2018.177',
           '8G.Array..HHZ.2018.177.Decon', 
           '8G.Array..HHZ.2018.177.BP1', 
           '8G.Array..HHZ.2018.177.BP2', 
-          '8G.Array..HHZ.2018.177.BP3' ]
+          '8G.Array..HHZ.2018.177.BP3',
+          '8G.Array..HHZ.2018.177.BP4']
 
 def crunch_all():
     data = []

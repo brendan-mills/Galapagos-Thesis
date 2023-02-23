@@ -51,6 +51,7 @@ def gather_all():
             sta = 'SN'+str(i)
         info = '8G.{}..{}.{}'.format(sta, chnsel, year)
         file_name = '{}.177.mseed'.format(info)
+        print(file_name)
         try:
             info = '8G.{}..{}.{}'.format(sta, chnsel, year)
             file_name = '{}.177.mseed'.format(info)
@@ -88,24 +89,24 @@ def deconvolve_prefilt(st, pf, out_name):
     st_decon.write(file_name)
     return st_decon
 
-stream = opy.read('/Volumes/LaCie/SN_Thesis/Day177/8G.Array..HHZ.2018.177.mseed')
-files = ['8G.Array..HHZ.2018.177.BP1.mseed', 
-         '8G.Array..HHZ.2018.177.BP2.mseed',
-         '8G.Array..HHZ.2018.177.BP3.mseed',
-         '8G.Array..HHZ.2018.177.BP4.mseed']
-filters = [ [0.5, 0.7, 9, 10], 
-            [0.5, 0.7, 17, 20],
-            [0.001, 0.01, 17, 20],
-            [0.001, 0.01, 40, 45]] 
+# stream = opy.read('/Volumes/LaCie/SN_Thesis/Day177/8G.Array..HHZ.2018.177.mseed')
+# files = ['8G.Array..HHZ.2018.177.BP1.mseed', 
+#          '8G.Array..HHZ.2018.177.BP2.mseed',
+#          '8G.Array..HHZ.2018.177.BP3.mseed',
+#          '8G.Array..HHZ.2018.177.BP4.mseed']
+# filters = [ [0.5, 0.7, 9, 10], 
+#             [0.5, 0.7, 17, 20],
+#             [0.001, 0.01, 17, 20],
+#             [0.001, 0.01, 40, 45]] 
 
-stream = opy.read('/Volumes/LaCie/SN_Thesis/Day177/8G.Array..HHZ.2018.177.mseed')
-for i in range(4):
-    print('Start '+files[i])
-    st_d = deconvolve_prefilt(stream, filters[i], files[i])
+# stream = opy.read('/Volumes/LaCie/SN_Thesis/Day177/8G.Array..HHZ.2018.177.mseed')
+# for i in range(4):
+#     print('Start '+files[i])
+#     st_d = deconvolve_prefilt(stream, filters[i], files[i])
     
-end_timer = time.time()
-print('This all took {} seconds'.format( round(end_timer-start_timer,2)) )
-
+# end_timer = time.time()
+# print('This all took {} seconds'.format( round(end_timer-start_timer,2)) )
+gather_all()
 # prefilt = [0.0001, 0.0002, samp_rate/2-2, samp]
 # prefilt = [0.5, 0.7, 9, 10]
 # st.remove_response(inventory=inventory, pre_filt= pre_filt, output = 'VEL', waterlevel= None)

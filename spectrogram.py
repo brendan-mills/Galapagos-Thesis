@@ -82,16 +82,13 @@ plt.show()
 # read data
 st = read('/Volumes/LaCie/SN_Thesis/Day177/8G.Array..HHZ.2018.177.BP4.mseed')
 t0 = UTCDateTime("2018-06-26T0:0:00.000")
-t1 = t0 + 17*3600#start of tremor
-t2 = t0 + 24*3600#end of tremor
+t1 = t0 + 16*3600#start of tremor
+t2 = t0 + 21*3600#end of tremor
 st.trim(starttime=t1, endtime=t2)
 st.merge(method=1)
 st_unfilt = st.copy()
 #st.filter("highpass",freq=0.5)
-t0 = UTCDateTime("2018-06-26T0:0:00.000")
-t1 = t0 + 17*3600#start of tremor
-t2 = t0 + 21*3600#end of tremor
-st.trim(starttime=t1, endtime=t2)
+
 
 # create time vector
 dt = st[0].stats.starttime.timestamp
@@ -118,7 +115,7 @@ plt.plot(tBDF/(60*60), st[0].data, color = '#FFFF00', linewidth = 0.3)
 
 plt.xticks([])
 plt.yticks(fontsize=14, **hfont)
-plt.xlim(0,tBDF[np.size(tBDF)-1]/(60*60))
+# plt.xlim(0,tBDF[np.size(tBDF)-1]/(60*60))
 plt.ylabel('v [m/s]', fontsize=16, **hfont)
 
 # Spectrogram

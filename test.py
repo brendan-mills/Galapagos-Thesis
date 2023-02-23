@@ -1,0 +1,1 @@
+import covseisnet as csn
