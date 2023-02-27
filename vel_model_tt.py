@@ -33,9 +33,6 @@ import shutil
 ## TO DO
 
 PROJECT_PATH = '/Users/brendanmills/Documents/Senior_Thesis/Data/'
-DIRPATH_RAW = PROJECT_PATH + 'Raw/'
-DIRPATH_DESTINATION = DIRPATH_RAW #for the mass downloader
-os.makedirs(DIRPATH_DESTINATION, exist_ok=True)
 
 domain = mass_downloader.RectangularDomain(
     minlatitude=-1,#south
@@ -68,7 +65,7 @@ velocity_layers = pd.read_csv(
     )
 velocity_layers = velocity_layers[-3:MAX_DEPTH]
 # Show table
-print(velocity_layers)
+#print(velocity_layers)
 
 ax = velocity_layers.plot(
     drawstyle="steps-post",
@@ -81,7 +78,7 @@ ax = velocity_layers.plot(
 plt.scatter(velocity_layers.index, velocity_layers.loc[:,'P'])
 #%% Interpolate Depths
 #OK I know this is code soup
-VERT_DENSITY = 400
+VERT_DENSITY = 100
 interp_depths = np.linspace(np.amin(velocity_layers.index), np.amax(velocity_layers.index), VERT_DENSITY)
 #this smashes the arrays together
 interp_depths = np.sort(np.concatenate((interp_depths,np.array(velocity_layers.index)),axis=None))
@@ -114,7 +111,7 @@ plt.axvspan(depths.min(), depths.max(), alpha=0.2)
 plt.legend(["P", "S", "P interpolated", "S interpolated", "Domain"])
 plt.show()
 #%% Expand Model Laterally
-LAT_DENSITY = 300
+LAT_DENSITY = 100
 longitudes = np.linspace(domain.minlongitude, domain.maxlongitude, LAT_DENSITY)
 # sample latitudes in decreasing order to get corresponding colatitudes in increasing order (see explanation further)
 latitudes = np.linspace(domain.minlatitude, domain.maxlatitude, LAT_DENSITY)
@@ -195,7 +192,7 @@ for phase in travel_times.phase.data:
         tt[np.isinf(tt)] = 0
         travel_times.loc[locator] = tt
         
-TTIMES_PATH = PROJECT_PATH + 'TTimes/'
+TTIMES_PATH = PROJECT_PATH + 'TTimes/Sparse/'
 os.makedirs(TTIMES_PATH, exist_ok=True)
 travel_times.to_netcdf(TTIMES_PATH + 'travel_times.nc')
 for s in list(network.index):
@@ -230,5 +227,5 @@ ax.set_xlabel("Longitude (degrees)")
 ax.set_ylabel("Depth (km)")
 ax.set_title(f"Travel times from the seismic station {station.name}")
 plt.show()
-#%%
+
 
