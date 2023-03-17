@@ -40,3 +40,16 @@ for j in range(14):
         plt.imshow(img)
         plt.axis('off')
     plt.savefig(FIG_PATH + 'Batch2/Frame' + str(j), dpi = 200)
+
+#%% These exclude 5 and 11
+runs = ['pRun15/','pRun16/','pRun17/','pRun18/','pRun19/','pRun20/']
+os.makedirs(FIG_PATH + 'Batch3/', exist_ok=True)
+for j in range(14):
+    fig = plt.figure()
+    
+    for i in range(len(runs)):
+        img = Image.open(FIG_PATH + runs[i] + 'SNi' + str(j) + '.png')
+        fig.add_subplot(2, 3, i+1)
+        plt.imshow(img)
+        plt.axis('off')
+    plt.savefig(FIG_PATH + 'Batch3/Frame' + str(j), dpi = 200)

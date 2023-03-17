@@ -22,16 +22,16 @@ import rasterio
 import scipy.interpolate
 from glob import glob
 from osgeo import gdal
-from multiprocessing import Pool
-import time
+import pandas as pd
 
 
 PROJECT_PATH = '/Users/brendanmills/Documents/Senior_Thesis/Data/'
 DIRPATH_RAW = PROJECT_PATH + 'Raw/'
 DIRPATH_PROCESSED = PROJECT_PATH + 'Processed/'
-TTIMES_PATH = PROJECT_PATH + 'TTimes/Sparse'
+TTIMES_PATH = PROJECT_PATH + 'TTimes/Sparse5'
 DEM_PATH = '/Users/brendanmills/Documents/Senior_Thesis/GalapagosDEM/'
 FIG_PATH = '/Users/brendanmills/Documents/Senior_Thesis/Figs/Localization/'
+BEAM_PATH = PROJECT_PATH + 'Beam/'
 t0 = t0 = UTCDateTime("2018-06-26T17:0:00.000")
 tdur = 4*3600
 
@@ -48,14 +48,13 @@ lat_min = domain.minlatitude
 lat_max = domain.maxlatitude
 
 depth_min = -1.5
-depth_max = 20
+depth_max = 5
 sampling_rate = 25.0
 # client = Client("IRIS")
-beam_bank = []
 #%% load in streams
 filepaths_raw = sorted(glob(os.path.join(DIRPATH_RAW, "*.mseed")))
 filepaths_meta = sorted(glob(os.path.join(DIRPATH_RAW, "*.xml")))
-def get_streams(sta_array):
+def get_streams(sta_array, decimate=True):
     stream = csn.arraystream.ArrayStream()
     for filepath_waveform in tqdm.tqdm(filepaths_raw, desc="Collecting Streams"):
         st = read(filepath_waveform)
@@ -63,7 +62,8 @@ def get_streams(sta_array):
             stream.append(st[0]) 
     
     # decimate data to 25Hz
-    stream.decimate(4)
+    if decimate:
+        stream.decimate(4)
     
     # download metadata
     inv = obspy.Inventory()
@@ -100,7 +100,7 @@ def calc_correl(stream, win_dur_sec, avg):
     times, frequencies, covariances = csn.covariancematrix.calculate(
         stream, win_dur_sec, avg
     )
-    
+    # print('times', times.shape)
     # # Spectral width
     #spectral_width = covariances.coherence(kind="spectral_width")
     
@@ -116,43 +116,21 @@ def calc_correl(stream, win_dur_sec, avg):
     lags, correlation = csn.correlationmatrix.cross_correlation(
         covariance_1st, sampling_rate
     )
+    # print('correlation shape', correlation.shape)
     return correlation
 
-# def beam_helper(i, corr_in, low_pass, high_pass, sigma, beam):
-#     correl = corr_in[i]
-#     correl = correl.bandpass(low_pass, high_pass, sampling_rate)
-#     correl = correl.hilbert_envelope()
-#     correl = correl.smooth(sigma=sigma)  # default sigma is 5
-
-#     beam.calculate_likelihood(correl, sampling_rate, i)
-    
-#     beam_bank.append()
-#     return f'Done with {i}'
-    
-# def parallel_beam(stream, corr_in, low_pass, high_pass, sigma=20):#default sig is 20
-#     print('Beam')
-#     ttimes = csn.traveltime.TravelTime(stream, TTIMES_PATH)
-#     # Initiate beam object and set geographical extent of grid
-#     nwin = corr_in.nwin()  # number of time windows
-#     beam = csn.beam.Beam(nwin, ttimes)
-#     beam.set_extent(lon_min, lon_max, lat_min, lat_max, depth_min, depth_max)
-#     items = [(i, corr_in, low_pass, high_pass, sigma, beam) for i in range(nwin)]
-#     with Pool() as pool:
-#         for out in pool.starmap(beam_helper, items):
-#                 print(out)
-#     return beam, nwin
-
-def calc_beam(stream, corr_in, low_pass, high_pass, sigma=20):#default sig is 20
-    print('Beam')
+def calc_beam(stream, corr_in, low_pass, high_pass, sigma=20, test=False):#default sig is 20
+    print('Beam from', TTIMES_PATH)
     ttimes = csn.traveltime.TravelTime(stream, TTIMES_PATH)
     # Initiate beam object and set geographical extent of grid
     nwin = corr_in.nwin()  # number of time windows
     beam = csn.beam.Beam(nwin, ttimes)
     beam.set_extent(lon_min, lon_max, lat_min, lat_max, depth_min, depth_max)
-    
     # Loop through all windows and calculate likelihood 
-    for i in range(0, nwin):
-        print("Processing window", i + 1, "of", nwin)
+    df = pd.DataFrame(columns=['long','lat','depth'])
+    
+    for i in tqdm.tqdm(range(0, nwin)):
+        # print("Processing window", i + 1, "of", nwin)
     
         correl = corr_in[i]
     
@@ -166,16 +144,22 @@ def calc_beam(stream, corr_in, low_pass, high_pass, sigma=20):#default sig is 20
         beam.calculate_likelihood(correl, sampling_rate, i)
 
         beam_max = beam.max_likelihood(i)
-        print(
-            "Maximum likelihood at",
-            round(beam_max[0], 4),
-            "\N{DEGREE SIGN},",
-            round(beam_max[1], 4),
-            "\N{DEGREE SIGN},",
-            round(beam_max[2], 1),
-            "km",
-        )
-    return beam, nwin
+        # print(
+        #     i,
+        #     'Max at',
+        #     round(beam_max[0], 4),
+        #     "\N{DEGREE SIGN},",
+        #     round(beam_max[1], 4),
+        #     "\N{DEGREE SIGN},",
+        #     round(beam_max[2], 1),
+        #     "km,",
+        #     round(np.mean(beam.likelihood[i]),5),
+        #     round(np.std(beam.likelihood[i]),5)      
+        # )
+        df.loc[len(df.index)] = [beam_max[0], beam_max[1], beam_max[2]]
+        if test:
+            break
+    return beam, df
 
 def sw_insert(stream_in, sw_in):
     # # plot nrf and spectral width and waveforms from closest station
@@ -204,52 +188,75 @@ def sw_insert(stream_in, sw_in):
     ax[1].set_title("Spectral Width")
     plt.colorbar(img, ax=ax[1]).set_label("Covariance matrix spectral width")
     
-    # # Average spectral width between 0.5Hz and 5Hz
-    # i_freq_low = round(0.5 * sw_in.shape[1] / sampling_rate)
-    # i_freq_high = round(5 * sw_in.shape[1] / sampling_rate)
-    #spectral_width_average = np.mean(sw_in[:, i_freq_low:i_freq_high], axis=1)
-    
-    # ax[2].plot(np.linspace(0, duration_min, nwin), spectral_width_average, "k")
-    # ax[2].set_title("Average spectral width between 0.5Hz and 5Hz")
-    # ax[2].set_ylabel("Spectral width")
-    # ax[2].set_xlim(0, duration_min)
-    # ax[2].set_xlabel("Minutes")
-    
+    # Average spectral width between 0.5Hz and 5Hz
+    i_freq_low = round(0.5 * sw_in.shape[1] / sampling_rate)
+    i_freq_high = round(5 * sw_in.shape[1] / sampling_rate)
+    spectral_width_average = np.mean(sw_in[:, i_freq_low:i_freq_high], axis=1)
 
-def get_field(beam, i):
-    print('Getting field')
+def norm_field(field, norm, big, small):
+    likelihood_xyz = field
+    _max = big
+    _min = small
+    # Take slices at point of max likelihood
+    i_max, j_max, k_max = np.unravel_index(likelihood_xyz.argmax(), likelihood_xyz.shape)
+    likelihood_xy = likelihood_xyz[:, :, k_max]
+    
+    likelihood_xz = likelihood_xyz[:, j_max]
+    likelihood_yz = likelihood_xyz[i_max]
+    
+    # Normalize likelihood frame by frame between 0 and 1
+    if norm=='frame':
+        likelihood_xy = (likelihood_xy - likelihood_xy.min()) / (
+            likelihood_xy.max() - likelihood_xy.min()
+        )
+        likelihood_xz = (likelihood_xz - likelihood_xz.min()) / (
+            likelihood_xz.max() - likelihood_xz.min()
+        )
+        likelihood_yz = (likelihood_yz - likelihood_yz.min()) / (
+            likelihood_yz.max() - likelihood_yz.min()
+        )
+    elif norm=='log':
+        likelihood_xy = (likelihood_xy - _min) / (
+        _max - _min
+        )
+        likelihood_xz = (likelihood_xz - _min) / (
+            _max - _min
+        )
+        likelihood_yz = (likelihood_yz - _min) / (
+            _max - _min
+        )
+        bump = 1.5
+        likelihood_xy = np.log(likelihood_xy + bump)
+        likelihood_xz = np.log(likelihood_xz + bump)
+        likelihood_yz = np.log(likelihood_yz + bump)
+    elif norm=='my-way':
+        # Normalize likelihood between 0 and 1 my way
+        likelihood_xy = (likelihood_xy - _min) / (
+        _max - _min
+        )
+        likelihood_xz = (likelihood_xz - _min) / (
+            _max - _min
+        )
+        likelihood_yz = (likelihood_yz - _min) / (
+            _max - _min
+        )
+    elif norm == 'no-way':
+        pass
+    else:
+        print('That is not a valid normalization method')
+    return likelihood_xy, likelihood_xz, likelihood_yz
+
+def get_field(beam, i, norm):
+    # print('Getting field')
     # extract max likelihood position
     #beam_max = beam.max_likelihood(i_win)
     
     # Choose the last window for plotting likelihood
     likelihood_xyz = beam.likelihood[i, :, :, :]
-
-    # Take slices at point of max likelihood
-    i_max, j_max, k_max = np.unravel_index(likelihood_xyz.argmax(), likelihood_xyz.shape)
-    likelihood_xy = likelihood_xyz[:, :, k_max]
+    _max = np.amax(beam.likelihood)
+    _min = np.amin(beam.likelihood)
+    return norm_field(likelihood_xyz, norm, _max, _min)
     
-    # _max = np.amax(beam.likelihood)
-    # _min = np.min(beam.likelihood)
-    
-    # likelihood_xz = likelihood_xyz[:, j_max]
-    # likelihood_yz = likelihood_xyz[i_max]
-    
-    # Normalize likelihood between 0 and 1
-    likelihood_xy = (likelihood_xy - likelihood_xy.min()) / (
-        likelihood_xy.max() - likelihood_xy.min()
-    )
-    # likelihood_xz = (likelihood_xz - likelihood_xz.min()) / (
-    #     likelihood_xz.max() - likelihood_xz.min()
-    # )
-    # likelihood_yz = (likelihood_yz - likelihood_yz.min()) / (
-    #     likelihood_yz.max() - likelihood_yz.min()
-    # )
-    # # Normalize likelihood between 0 and 1 my way
-    # likelihood_xy = (likelihood_xy - _min) / (
-    #     _max - _min
-    # )
-    return likelihood_xy
-
 def dem_prep(ttimes):
     print('DEM Prep')
     # clip the dem to the bounds using gdal
@@ -277,7 +284,7 @@ def dem_prep(ttimes):
     dem2 = scipy.interpolate.griddata(
         (x.ravel(),y.ravel()), dem1.ravel(), (x2, y2), method="linear"
     )
-    
+    np.save(DEM_PATH  + 'dem2.npy',dem2)
     # create custome discrete colormap for topography
     levels = 12
     custom_cmap_dem = plt.cm.get_cmap("Greys")(np.linspace(0.2, 0.5, levels))
@@ -290,6 +297,14 @@ def dem_prep(ttimes):
     rgb = ls.shade(dem2, custom_cmap_dem)
     np.save(DEM_PATH  + 'rgb.npy',rgb)
     return
+
+def dem_extras(beam, i_win):
+    dem2 = np.load(DEM_PATH + 'dem2.npy')
+    i_max, j_max, k_max = np.unravel_index(beam.likelihood[i_win, :, :, :].argmax(), beam.likelihood[i_win, :, :, :].shape)
+    dem_x = -1 * dem2[i_max, :] / 1000  # dem along xz slice, convert to km
+    dem_y = np.flip(-1 * dem2[:, j_max] / 1000)  # dem along yz slice, convert to km
+    return dem_x, dem_y
+
 def my_cmap():
     # create custom discrete colormap for likelihood
     low = 4
@@ -306,7 +321,7 @@ def my_cmap():
     return custom_cmap
 
 def plot_map(field, win_dur, stream, inv, i, run_name):
-    print('Mapping')
+    # print('Mapping')
     rgb = np.load(DEM_PATH+'rgb.npy')
     a_cmap = my_cmap()
     fig, ax = plt.subplots(1, constrained_layout=True, dpi=100)
@@ -336,12 +351,12 @@ def plot_map(field, win_dur, stream, inv, i, run_name):
     ax.set_ylabel("Latitude")
     
     itime = t0 + win_dur * i
-    ax.set_title(f"{run_name}, map view, {itime}")
+    ax.set_title(f"{run_name}, map view, {i} {itime}")
     
     
     os.makedirs(FIG_PATH + run_name + '/', exist_ok=True)
     
-    fig.savefig(FIG_PATH+ f'{run_name}/SNi{i}')
+    
     
     # create dictionary of station metadata from station xml
     net = {"lat": [], "lon": []}
@@ -355,62 +370,98 @@ def plot_map(field, win_dur, stream, inv, i, run_name):
         )
         ax.add_patch(triangle)
     plt.colorbar(img_xy).set_label("Likelihood")
+    fig.savefig(FIG_PATH+ f'{run_name}/SNi{i}')
     return fig, ax
 
-def corr_and_plot(low, high, win, av, ov, sta_array, name):
-    # (low, high, win, av, ov, sta_array, name) = big_in
+def plot_depth(xz, yz, i, run_name, beam):
+    # plot depth views
+    fig = plt.figure(figsize=(12, 7))
+    a_cmap = my_cmap()
+    dem_x, dem_y = dem_extras(beam, i)
+    ax1 = fig.add_subplot(2,1,1)
+    
+    img_xz = ax1.imshow(
+        xz.T,
+        interpolation="none",
+        origin="upper",
+        cmap=a_cmap,
+        aspect="auto",
+        extent=[lon_min, lon_max, depth_max, depth_min],
+        vmin=0.5,
+    )
+    ax1.fill_between(
+        np.linspace(lon_min, lon_max, len(dem_x)),
+        depth_min,
+        dem_x,
+        facecolor="w",
+        edgecolor="k",
+        lw=0.4,
+    )  # crop out data above topo
+    ax1.set_xlabel("Longitude")
+    ax1.set_ylabel("Depth (km)")
+    ax1.set_title("Likelihood location, depth view")
+    fig.colorbar(img_xz).set_label("Likelihood")
+    
+    ax2 = fig.add_subplot(2,1,2)
+    img_yz = ax2.imshow(
+        yz.T,
+        interpolation="none",
+        origin="upper",
+        cmap=a_cmap,
+        aspect="auto",
+        extent=[lat_min, lat_max, depth_max, depth_min],
+        vmin=0.5,
+    )
+    ax2.fill_between(
+        np.linspace(lat_min, lat_max, len(dem_y)),
+        depth_min,
+        dem_y,
+        facecolor="w",
+        edgecolor="k",
+        lw=0.4,
+    )  # crop out data above topo
+    ax2.set_xlabel("Latitude")
+    ax2.set_ylabel("Depth (km)")
+    fig.colorbar(img_yz).set_label("Likelihood")
+    os.makedirs(FIG_PATH + run_name + '/Depth', exist_ok=True)
+    fig.savefig(FIG_PATH+ f'{run_name}/Depth/SNi{i}')
+    return
+
+
+    
+
+def corr_and_plot(low, high, win, av, ov, sta_array, name, norm, test=False):
+    os.makedirs(FIG_PATH + name, exist_ok=True)
     print(low, high, win, av, ov, sta_array, name)
     st, inv = get_streams(sta_array)
     print(st)
     stream_out = stream_pre_process(st, low, high, win, av, ov)
     correlation = calc_correl(stream_out, win, av)
-    beam, nwin = calc_beam(stream_out, correlation,low, high, sigma=20)
+    nwin = correlation.nwin()
+    beam, df = calc_beam(stream_out, correlation,low, high, sigma=20, test=test)
+    df.to_csv(FIG_PATH + name + '/max.csv')
+    with open(FIG_PATH + name +'/' + 'info.txt', 'w') as f:
+        f.write(f'Nwin {nwin}\n')
+        f.write(f'Run {name}\n')
+        f.write(f'Low {low}\n')
+        f.write(f'High {high}\n')
+        f.write(f'Window_sec {win}\n')
+        f.write(f'Avgerage {av}\n')
+        f.write(f'Overlap {ov}\n')
+        f.write(f'Stations {str(sta_array)}\n')
+        f.write(f'Norm {norm}\n')
     for i in range(nwin):
-        field = get_field(beam, i)
-        plot_map(field, tdur/nwin,stream_out, inv, i, name)
+        fieldxy, xz, yz = get_field(beam, i, norm)
+        plot_map(fieldxy, tdur/nwin,stream_out, inv, i, name)
+        try:
+            
+            plot_depth(xz, yz, i, name, beam)
+        except:
+            with open(FIG_PATH + name +'/' + 'info.txt', 'w') as f:
+                f.write('I screwed up the depth figure\n')
+            
     return name
-        
-# def par_test(low, high, win, av, ov, stream, name):
-#     stream_out = stream_pre_process(stream, low, high, win, av, ov)
-#     correlation = calc_correl(stream_out, win, av)
-#     beam, nwin = parallel_beam(stream_out, correlation,low, high, sigma=20)
-#     for i in range(nwin):
-#         field = get_field(beam, i)
-#         plot_map(field, tdur/nwin, i, name)
 
-
-# corr_and_plot(0.5, 10, 120, 30, 0.5, stream, 'test')
-
-# par_test(0.5, 10, 120, 30, 0.5, stream, 'ParallelTest')
-# staa = ['SN04', 'SN05','SN07','SN11','SN12','SN13','SN14','SN06']
-# corr_and_plot( (6, 8, 120, 30, 0.5, staa, 'test') )
-
-
-#%% Parameters
-
-# # frequency limits for filtering (depends on the target signal)
-# low_pass = 0.5
-# high_pass = 10.0
-
-# # optimized for VT earthquakes
-# # window_duration_sec = 12
-# # average = 20
-
-# # optimized for tremors
-# window_duration_sec = 180
-# average = 30
-# overlap = 0.5
-
-# stream_out = stream_pre_process(stream, low_pass, high_pass, window_duration_sec, average, overlap)
-# correlation = calc_correl(stream_out, window_duration_sec, average)
-# beam, nwin = calc_beam(stream_out, correlation,sigma=20)
-# for i in range(nwin):
-#     field, small, big = get_field(beam, i)
-#     plot_map(field,small, big, tdur/nwin, i, 'test')
-
-#%% for depth plots
-# dem_x = -1 * dem2[i_max, :] / 1000  # dem along xz slice, convert to km
-# dem_y = np.flip(-1 * dem2[:, j_max] / 1000)  # dem along yz slice, convert to km
 '''
 Run0 - 0.5, 10, 60,30,0.5
 Run1 - 0.5, 10, 60,30,0.75

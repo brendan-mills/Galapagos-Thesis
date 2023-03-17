@@ -18,7 +18,7 @@ from obspy import read_inventory
 
 #the first step is to download the data
 #first set up some path names
-PROJECT_PATH = '/Users/brendanmills/Documents/Senior_Thesis/Data/'
+PROJECT_PATH = '/Users/brendanmills/Documents/Senior_Thesis/Data2/'
 DIRPATH_RAW = PROJECT_PATH + 'Raw/'
 DIRPATH_DESTINATION = DIRPATH_RAW #for the mass downloader
 os.makedirs(DIRPATH_DESTINATION, exist_ok=True)
@@ -34,8 +34,8 @@ lon_min = domain.minlongitude
 lon_max = domain.maxlongitude
 lat_min = domain.minlatitude
 lat_max = domain.maxlatitude
-t0 = t0 = UTCDateTime("2018-06-26T17:0:00.000")
-tdur = 4*3600
+t0 = t0 = UTCDateTime("2018-06-26T12:0:00.000")
+tdur = 24*3600
 restrictions = mass_downloader.Restrictions(
     starttime=t0,
     endtime=t0 + tdur,

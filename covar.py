@@ -11,7 +11,10 @@ import obspy as opy
 import matplotlib.pyplot as plt
 import numpy as np
 import time
+import os
+from glob import glob
 from obspy import UTCDateTime
+import tqdm
 
 start_timer = time.time()
 tdur=3600*24 # duration in seconds for one day
@@ -24,6 +27,36 @@ chnsel="HHZ" # channel code selection
 quake = UTCDateTime("2018-06-26T9:15:00.000")
 swarm = UTCDateTime("2018-06-26T17:17:00.000")
 trem = UTCDateTime("2018-06-26T19:40:00.000")
+PROJECT_PATH = '/Users/brendanmills/Documents/Senior_Thesis/Data2/'
+DIRPATH_RAW = PROJECT_PATH + 'Raw/'
+filepaths_raw = sorted(glob(os.path.join(DIRPATH_RAW, "*.mseed")))
+filepaths_meta = sorted(glob(os.path.join(DIRPATH_RAW, "*.xml")))
+sta_array = ['SN04', 'SN05', 'SN07', 'SN11', 'SN12', 'SN13', 'SN14', 'SN06']
+
+# st = opy.read('/Volumes/LaCie/SN_Thesis/Day177/8G.Array..HHZ.2018.177.Decon.mseed')
+t1 = t0 + 12*3600#start of tremor
+t2 = t0 + 36*3600#end of tremor
+# st.trim(starttime=t1, endtime=t2)
+
+window_duration_sec = 20
+average = 30
+
+
+
+def get_streams(sta_array, decimate=True):
+    stream = csn.arraystream.ArrayStream()
+    for filepath_waveform in tqdm.tqdm(filepaths_raw, desc="Collecting Streams"):
+        st = opy.read(filepath_waveform)
+        if st[0].stats.station in sta_array:
+            stream.append(st[0]) 
+    stream.decimate(4)
+    # download metadata
+    inv = opy.Inventory()
+    for p in filepaths_meta:
+        inv_to_be = opy.read_inventory(p)
+        if inv_to_be.get_contents()['channels'][0].split('.')[1] in sta_array:
+            inv.extend(inv_to_be)
+    return stream, inv
 
 def plot_time(ax, starttime, time):
     h = time.timestamp - starttime.timestamp
@@ -52,14 +85,6 @@ def single_mat(stream, window_duration_sec, average):
     ax.set_yticklabels(channels)
     ax.set_title("Single-station multiple channels covariance")
     plt.colorbar(img, shrink=0.6).set_label("Covariance modulus")
-
-# st = opy.read('/Volumes/LaCie/SN_Thesis/Day177/8G.Array..HHZ.2018.177.Decon.mseed')
-t1 = t0 + 16*3600#start of tremor
-t2 = t0 + 21*3600#end of tremor
-# st.trim(starttime=t1, endtime=t2)
-
-window_duration_sec = 20
-average = 20
 
 def calc_covar(st, spec_w = True):
     stream = csn.arraystream.ArrayStream(st)
@@ -103,8 +128,8 @@ def plot_covar( spec_w, title = '' ):
     # ax.set_yscale('log')
     ax.set_ylim([0, 4])
     plt.colorbar(img).set_label("Covariance matrix spectral width")
-    plot_time(ax, t1, swarm)
-    plot_time(ax,t1, trem)
+    # plot_time(ax, t1, swarm)
+    # plot_time(ax,t1, trem)
     plt.savefig('../Figs/'+title+'.jpg', format='jpg', dpi=400, bbox_inches='tight')
     plt.show()
     
@@ -148,8 +173,11 @@ def crunch_all():
 # nwin = correlation.nwin()  # number of time windows
 # fig,ax = plt.subplots(figsize = (10,5))
 # ax.plot(np.linspace(0, duration_min, nwin)/60, spectral_width_average, "r")
-
+#%%
+st, inv = get_streams(sta_array)
+sw = calc_covar(st,spec_w=True)
+plot_covar(sw,title='test2')
 end_timer = time.time()
 print('This all took {} seconds'.format( round(end_timer-start_timer,2)) )
-# import os
+
 #os.system('say "Done"')
