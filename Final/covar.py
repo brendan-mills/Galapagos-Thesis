@@ -27,41 +27,55 @@ chnsel="HHZ" # channel code selection
 quake = UTCDateTime("2018-06-26T9:15:00.000")
 swarm = UTCDateTime("2018-06-26T17:17:00.000")
 trem = UTCDateTime("2018-06-26T19:40:00.000")
-PROJECT_PATH = '/Users/brendanmills/Documents/Senior_Thesis/Data2/'
+PROJECT_PATH = '/Users/brendanmills/Documents/Senior_Thesis/Data/Station_Data/'
 DIRPATH_RAW = PROJECT_PATH + 'Raw/'
-filepaths_raw = sorted(glob(os.path.join(DIRPATH_RAW, "*.mseed")))
-filepaths_meta = sorted(glob(os.path.join(DIRPATH_RAW, "*.xml")))
+PROCESSED_PATH = PROJECT_PATH + 'Processed/'
 sta_array = ['SN04', 'SN05', 'SN07', 'SN11', 'SN12', 'SN13', 'SN14', 'SN06']
 
-# st = opy.read('/Volumes/LaCie/SN_Thesis/Day177/8G.Array..HHZ.2018.177.Decon.mseed')
-t1 = t0 + 15*3600#start of tremor
-t2 = t0 + 25*3600#end of tremor
+stream = csn.arraystream.read(PROCESSED_PATH + '8GEC.All..HHZ.Decon.filt1.trim.decim.mseed')
+t1 = t0 + 17*3600#start of tremor
+t2 = t0 + 21*3600#end of tremor
+signal_duration_sec = t2-t1
 # st.trim(starttime=t1, endtime=t2)
-
+#%% Side By side Covariance
 window_duration_sec = 20
 average = 30
+stas = [s.stats.station for s in stream]
+times, frequencies, covariances = csn.covariancematrix.calculate(
+    stream, window_duration_sec, average
+)
+time1 = 0
+time2 = 32
+freq = 40
+# show covariance from first window and first frequency
+covariance_show = np.abs(covariances[time1, freq])
+fig, (ax1, ax2) = plt.subplots(1,2, constrained_layout=True, figsize=(13,5))
+img1 = ax1.imshow(covariance_show, cmap="viridis_r")
+ax1.set_xticks(range(len(stas)))
+ax1.set_xticklabels(stas, rotation=45)
+ax1.set_yticks(range(len(stas)))
+ax1.set_yticklabels(stas)
+ax1.tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
 
-def decon(stream,inv):
-    st_decon = opy.core.stream.Stream()
-    for tr in tqdm.tqdm(stream):
-        tr_d = tr.remove_response(inventory=inv,output='VEL')
-        tr_d.detrend('demean')
-        st_decon.append(tr_d)
+covariance_show = np.abs(covariances[time2, freq])
+img2 = ax2.imshow(covariance_show, cmap="viridis_r")
+ax2.set_xticks(range(len(stas)))
+ax2.set_xticklabels(stas, rotation=45)
+ax2.set_yticks(range(len(stas)))
+ax2.set_yticklabels(stas)
+ax2.tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
 
-def get_streams(sta_array, decimate=True):
-    stream = csn.arraystream.ArrayStream()
-    for filepath_waveform in tqdm.tqdm(filepaths_raw, desc="Collecting Streams"):
-        st = opy.read(filepath_waveform)
-        if st[0].stats.station in sta_array:
-            stream.append(st[0]) 
-    stream.decimate(4)
-    # download metadata
-    inv = opy.Inventory()
-    for p in filepaths_meta:
-        inv_to_be = opy.read_inventory(p)
-        if inv_to_be.get_contents()['channels'][0].split('.')[1] in sta_array:
-            inv.extend(inv_to_be)
-    return stream, inv
+
+ax1.set_title((t1+times[time1]).datetime)
+ax2.set_title((t1+times[time2]).datetime)
+
+fig.colorbar(img1).set_label("Covariance modulus")
+fig.colorbar(img2).set_label("Covariance modulus")
+fig.suptitle('Network Covariance Matrix at 1 Hz',fontsize=20)
+
+#%% No Preprocessing
+window_duration_sec = 20
+average = 30
 
 def plot_time(ax, starttime, time):
     h = time.timestamp - starttime.timestamp
@@ -69,10 +83,51 @@ def plot_time(ax, starttime, time):
     ax.axvline(h, color = 'r')
     return ax
 
+# calculate covariance from stream
+window_duration_sec = 20
+average = 15
+times, frequencies, covariances = csn.covariancematrix.calculate(
+    stream, window_duration_sec, average
+)
 
-#this line corrects for the quiet day
-# t0 = t0-(177-130)*tdur
+# calculate spectral width
+spectral_width = covariances.coherence(kind="spectral_width")
 
+# show network covariance matrix spectral width
+fig, ax = plt.subplots(1, constrained_layout=True)
+img = ax.pcolormesh(
+    10 + times / 3600, frequencies, spectral_width.T, rasterized=True, cmap="viridis_r"
+)
+ax.set_ylim([0, stream[0].stats.sampling_rate / 2])
+ax.set_xlabel("Hours")
+ax.set_ylabel("Frequency (Hz)")
+plt.colorbar(img).set_label("Covariance matrix spectral width")
+
+#%% preprocess using smooth spectral whitening and temporal normalization
+stream = stream.synchronize(start=t1, duration_sec=signal_duration_sec, method="linear")
+stream.preprocess(domain="spectral", method="smooth")
+stream.preprocess(domain="temporal", method="smooth")
+
+# calculate covariance from stream
+times, frequencies, covariances = csn.covariancematrix.calculate(
+    stream, window_duration_sec, average
+)
+
+# calculate spectral width
+spectral_width = covariances.coherence(kind="spectral_width")
+
+# show network covariance matrix spectral width
+fig, ax = plt.subplots(1, constrained_layout=True)
+img = ax.pcolormesh(
+    times / 3600, frequencies, spectral_width.T, rasterized=True, cmap="viridis_r"
+)
+ax.set_ylim([0, stream[0].stats.sampling_rate / 2])
+ax.set_xlabel("2010.10.14 (hours)")
+ax.set_ylabel("Frequency (Hz)")
+ax.set_title("Smooth spectral and temporal preprocessing")
+plt.colorbar(img).set_label("Covariance matrix spectral width")
+
+#%%
 def single_mat(stream, window_duration_sec, average):
     channels = [s.stats.channel for s in stream]
     
@@ -137,25 +192,7 @@ def plot_covar( spec_w, title = '' ):
     # plot_time(ax,t1, trem)
     plt.savefig('../Figs/'+title+'.jpg', format='jpg', dpi=400, bbox_inches='tight')
     plt.show()
-    
-files = ['8G.Array..HHZ.2018.177', 
-          '8G.Array..HHZ.2018.177.Decon', 
-          '8G.Array..HHZ.2018.177.BP1', 
-          '8G.Array..HHZ.2018.177.BP2', 
-          '8G.Array..HHZ.2018.177.BP3',
-          '8G.Array..HHZ.2018.177.BP4']
 
-def crunch_all():
-    data = []
-    for f in files:
-        print('Reading '+f)
-        st = opy.read('/Volumes/LaCie/SN_Thesis/Day177/'+f+'.mseed')
-        st.trim(starttime=t1, endtime=t2)
-        print('Starting covariance calculation')
-        spec_w = calc_covar(st)
-        data.append(spec_w)
-        plot_covar(spec_w, f)
-    return data
         
 # #average spec widths
 # sampling_rate = stream[0].stats.sampling_rate  # assumes all streams have the same sampling rate
@@ -178,12 +215,3 @@ def crunch_all():
 # nwin = correlation.nwin()  # number of time windows
 # fig,ax = plt.subplots(figsize = (10,5))
 # ax.plot(np.linspace(0, duration_min, nwin)/60, spectral_width_average, "r")
-#%%
-st, inv = get_streams(sta_array)
-st.trim(starttime=t1, endtime=t2)
-sw = calc_covar(st,spec_w=True)
-plot_covar(sw,title='test2')
-end_timer = time.time()
-print('This all took {} seconds'.format( round(end_timer-start_timer,2)) )
-
-#os.system('say "Done"')
