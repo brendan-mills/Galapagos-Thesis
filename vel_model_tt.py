@@ -5,7 +5,6 @@ Created on Tue Feb 21 14:56:37 2023
 
 @author: ?
 """
-import cartopy
 import os
 import numpy as np
 import pandas as pd
@@ -15,10 +14,6 @@ from pykonal.solver import PointSourceSolver
 from pykonal.transformations import geo2sph
 import covseisnet as csn
 import matplotlib.pyplot as plt
-from matplotlib.patches import RegularPolygon
-import matplotlib.colors as mcolors
-from matplotlib.colors import LightSource
-import obspy
 from obspy import UTCDateTime
 from obspy.clients.fdsn import Client
 from obspy import read, read_inventory
@@ -27,21 +22,21 @@ from obspy.clients.fdsn import mass_downloader
 import rasterio
 import scipy.interpolate
 from glob import glob
-import elevation
-from osgeo import gdal
-import shutil
 ## TO DO
+MAX_DEPTH = 5
+VERT_DENSITY = 20
+LAT_DENSITY = 300
 
 PROJECT_PATH = '/Users/brendanmills/Documents/Senior_Thesis/Data/'
-TTIMES_PATH = PROJECT_PATH + 'TTimes/50x250/'
+TTIMES_PATH = PROJECT_PATH + f'TTimes/{LAT_DENSITY}lat{VERT_DENSITY}dep/'
 os.makedirs(TTIMES_PATH, exist_ok=True)
 domain = mass_downloader.RectangularDomain(
-    minlatitude=-1,#south
-    maxlatitude=-0.5794,#north
-    minlongitude=-91.3508,#west
-    maxlongitude=-90.9066,#east
+    minlatitude=-1.17,#south
+    maxlatitude=-0.45,#north
+    minlongitude=-91.45,#west
+    maxlongitude=-90.8,#east
 )
-# grid extent Longitude: 55.67° to 55.81° (145 points), Latitude: -21.3° to -21.2° (110 points)
+
 lon_min = domain.minlongitude
 lon_max = domain.maxlongitude
 lat_min = domain.minlatitude
@@ -52,12 +47,13 @@ tdur = 4*3600
 DIRPATH_RAW = PROJECT_PATH + 'Raw/'
 DIRPATH_PROCESSED = PROJECT_PATH + 'Processed/'
 
-MAX_DEPTH = 5
-VERT_DENSITY = 50
-LAT_DENSITY = 250
 with open(TTIMES_PATH + 'info.txt', 'w') as f:
-    f.write(f'vert density {VERT_DENSITY}\n')
-    f.write(f'vert density {LAT_DENSITY}\n')
+    f.write(f'vert_density {VERT_DENSITY}\n')
+    f.write(f'vert_density {LAT_DENSITY}\n')
+    f.write(f'lonmin {lon_min}')
+    f.write(f'lonax {lon_max}')
+    f.write(f'latmin {lat_min}')
+    f.write(f'latmax {lat_max}')
 #%% Velovity Model
 
 FILEPATH_VELOCITY = '/Users/brendanmills/Documents/Senior_Thesis/Data/1dvmod.txt'
@@ -135,6 +131,12 @@ stations = [sta for net in inventory for sta in net]
 attrs = "longitude", "latitude", "elevation", "code"
 stations = [{item: getattr(sta, item) for item in attrs} for sta in stations]
 
+stations = list(np.append(stations,[{'longitude': -91.409849, 'latitude': -0.791115, 'elevation': 46.796349, 'code': 'CEAZ'},
+                  {'longitude': -91.01927, 'latitude': -0.8597631, 'elevation': 267.847, 'code': 'PVIL'},
+                  {'longitude': -91.1134240, 'latitude': -0.7824234, 'elevation': 1067.3101983, 'code': 'VCH1'},
+                  {'longitude': -90.9701114, 'latitude': -0.4548725, 'elevation': 134.2029101, 'code': 'ALCE'},
+                  ]))
+
 # Turn into dataframe
 network = pd.DataFrame(stations).set_index("code")
 network["depth"] = -1e-3 * network.elevation
@@ -156,7 +158,7 @@ ax.set_ylabel("Depth (km)")
 ax.set_title("Velocity model slice from 3D grid")
 cb.set_label(f"{velocities_slice.phase.data} velocity (km/s)")
 ax.invert_yaxis()
-# Travel Times
+#%% Travel Times
 STATION_ENTRIES = ["latitude", "longitude", "depth"]
 
 # Initialize travel times
@@ -208,7 +210,7 @@ for s in list(network.index):
 #%%
 CONTOUR_LEVELS = 20
 SEISMIC_PHASE = "P"
-station = network.loc["SN13"]
+station = network.loc["ALCE"]
 
 # Show
 latitude_id = np.abs(travel_times.latitude - station.latitude).argmin()
@@ -216,7 +218,7 @@ time_delays = travel_times.sel(phase=SEISMIC_PHASE, station=station.name)
 time_delays = np.flip(time_delays, 1)
 time_delays = time_delays.isel(latitude=latitude_id)
 img = time_delays.plot.contourf(
-    add_colorbar=False, cmap="RdPu", levels=CONTOUR_LEVELS, figsize=(10, 6)
+    add_colorbar=False, cmap="RdPu", levels=CONTOUR_LEVELS, figsize=(20, 2)
 )
 
 # Colorbar
