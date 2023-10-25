@@ -121,7 +121,7 @@ fig.savefig('/Users/brendanmills/Documents/Senior_Thesis/Figs/Covar/eigs.svg',fo
 
 #%% preprocess using smooth spectral whitening and temporal normalization
 window_duration_sec = 60
-average = 8
+average = 20
 stream = stream.synchronize(start=t1, duration_sec=signal_duration_sec, method="linear")
 stream.preprocess(domain="spectral", method="smooth")
 stream.preprocess(domain="temporal", method="smooth")
@@ -289,6 +289,10 @@ def sw_avg(low, high):
     
     spectral_width_average = np.mean(spectral_width[:, i_freq_low:i_freq_high], axis=1)
     return spectral_width_average
+
+def plot_sw_avg(ax, low, high, c_i):
+    color = ["orange", 'g', 'b',]
+    ax.plot(hours, sw_avg(low, high), color[c_i], label=f'{low} - {high} Hz')
 spectral_width_average = sw_avg(low, high)
 
 # Eigenvector decomposition - covariance matrix filtered by the 1st eigenvector to show the dominant source
@@ -304,11 +308,14 @@ duration_min = duration_sec / 60
 nwin = len(spectral_width)
 fig,ax = plt.subplots(constrained_layout=True, figsize=(16,8))
 hours = np.linspace(0, duration_min, nwin)/60 + stats.starttime.hour
-ax.plot(hours, sw_avg(0.01, 0.02), "orange", label='0.01 - 0.02 Hz')
-ax.plot(hours, sw_avg(0.1, 0.2), "g", label='0.1 - 0.2 Hz')
-ax.plot(hours, sw_avg(0.25, 0.75), "b", label='0.25 - 0.75 Hz')
-ax.axvspan(17.535, 18.58, alpha=0.25, color='red')
-ax.axvspan(19.15, 19.96, alpha=0.25, color='red')
+plot_sw_avg(ax, 0.01, 0.02, 0)
+plot_sw_avg(ax, 0.5, 1, 1)
+plot_sw_avg(ax, 1, 6, 2)
+# ax.plot(hours, sw_avg(0.01, 0.02), "orange", label='0.01 - 0.02 Hz')
+# ax.plot(hours, sw_avg(0.1, 0.2), "g", label='0.1 - 0.2 Hz')
+# ax.plot(hours, sw_avg(0.25, 0.75), "b", label='0.25 - 0.75 Hz')
+# ax.axvspan(17.535, 18.58, alpha=0.25, color='red')
+# ax.axvspan(19.15, 19.96, alpha=0.25, color='red')
 
 ax.legend()
 

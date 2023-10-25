@@ -22,12 +22,13 @@ import scipy.interpolate
 from glob import glob
 from osgeo import gdal
 import pandas as pd
+import xarray
 
 depth_min = -1.5
 depth_max = 5
 sampling_rate = 25.0
 
-win_duration_sec = 20
+win_duration_sec = 30
 win_avg = 8
 ovlp=0.5
 
@@ -120,6 +121,7 @@ beam.set_extent(lon_min, lon_max, lat_min, lat_max, depth_min, depth_max)
 
 #%% Location
 try:
+    raise
     df = pd.read_csv(FIG_PATH + 'max.csv')
     print('Loaded max.csv')
 except:
@@ -139,12 +141,48 @@ except:
         beam_max = beam.max_likelihood(i)
         df.loc[i] = [beam_max[0], beam_max[1], beam_max[2]]
     
+    
     os.makedirs(FIG_PATH, exist_ok=True)
     print('Write to: ' + FIG_PATH + 'max.csv')
     df.to_csv(FIG_PATH + 'max.csv')
+    print('Write to: ' + PROJECT_PATH + 'beam_temp.npy')
+    np.save(PROJECT_PATH + 'beam_temp.npy', beam)
+    print('Done')
+#%% Field plotting
+i_win = 3
+region = [-91.45, -90.8, -1.17, -0.45]#whole domain
+# Choose the last window for plotting likelihood
+likelihood_xyz = beam.likelihood[i_win, :, :, :]
 
+# Take slices at point of max likelihood
+i_max, j_max, k_max = np.unravel_index(likelihood_xyz.argmax(), likelihood_xyz.shape)
+likelihood_xy = likelihood_xyz[:, :, k_max]
 
-#%% Plotting
+# Normalize likelihood between 0 and 1
+field = (likelihood_xy - likelihood_xy.min()) / (
+    likelihood_xy.max() - likelihood_xy.min()
+)
+fig = pygmt.Figure()
+fig.basemap(region=region, projection="X10c", frame=True)
+
+#  the position 1/1
+# on a basemap, scaled up to be 3 cm wide and draw a rectangular border
+# around the image
+# pygmt.makecpt(cmap="gray", series=[0, 1])
+# fig.grdimage(
+#     grid=xarray.DataArray(likelihood_xy.T),
+#     projection="M12c",
+#     cmap=True,
+# )
+# fig.coast(
+#           water="azure1", 
+#           region=region,
+#           projection='M12c',
+#           frame=["SWrt+tStation Map", "xa0.2", "ya0.2"],
+#           )
+
+# fig.show()
+#%% Plotting Maximums
 filepaths_raw = sorted(glob(os.path.join(DIRPATH_RAW, "*.mseed")))
 filepaths_meta = sorted(glob(os.path.join(META_PATH,'*')))
 
@@ -207,7 +245,7 @@ fig.plot(x=track['long'],
 fig.colorbar(frame="af+lTime [hours UTC]")
 fig.plot(x=net['longitude'],
           y=net['latitude'],
-          style="t0.3t",
+          style="t0.3c",
           # size = 0.15*np.ones(len(track)),
           fill='white',
           pen="black",
@@ -322,199 +360,4 @@ with fig.inset(position="jTR+w3c+o0.1c", margin=0):
 fig.legend(position="jTL+w3c+o0.1c")
 fig.show() 
 fig.savefig(PROJECT_PATH + '/stations.pdf')  
-#%% Trash
-def get_field(beam, i, norm):
-    # print('Getting field')
-    # extract max likelihood position
-    #beam_max = beam.max_likelihood(i_win)
-    
-    # Choose the last window for plotting likelihood
-    likelihood_xyz = beam.likelihood[i, :, :, :]
-    _max = np.amax(beam.likelihood)
-    _min = np.amin(beam.likelihood)
-    return norm_field(likelihood_xyz, norm, _max, _min)
-    
-def dem_prep(ttimes):
-    print('DEM Prep')
-    # clip the dem to the bounds using gdal
-    dataset = gdal.Open(DEM_PATH + 'GalDEMclip.tif')
-    
-    # path to where you want the clipped raster
-    outputSrtm = DEM_PATH + 'GalDEMclipzoom.tif'
-    gdal.Translate(outputSrtm , dataset,projWin = [lon_min, lat_max, lon_max, lat_min])
-    
-    # Download DEM and interpolate to grid
-    dem_path = outputSrtm
-    dem = rasterio.open(dem_path)  # open downloaded dem file
-    dem1 = dem.read(1)  # extract values
-    dem1 = np.where(dem1 == -999, 0, dem1)  # replace null values with zero
-    nx_dem = dem1.shape[0]  # x dimension of dem grid
-    ny_dem = dem1.shape[1]  # y dimension of dem grid
-    # old dem grid
-    x,y = np.mgrid[0 : nx_dem - 1 : complex(nx_dem), 0 : ny_dem - 1 : complex(ny_dem)]
-    # new dem grid, with dimensions matching our traveltime grid
-    x2, y2 = np.mgrid[
-        0 : nx_dem - 1 : complex(ttimes.nx),
-        0 : ny_dem - 1 : complex(ttimes.ny),
-    ]
-    # interpolate onto the new grid
-    dem2 = scipy.interpolate.griddata(
-        (x.ravel(),y.ravel()), dem1.ravel(), (x2, y2), method="linear"
-    )
-    np.save(DEM_PATH  + 'dem2.npy',dem2)
-    # create custome discrete colormap for topography
-    levels = 12
-    custom_cmap_dem = plt.cm.get_cmap("Greys")(np.linspace(0.2, 0.5, levels))
-    custom_cmap_dem = mcolors.LinearSegmentedColormap.from_list("Greys", custom_cmap_dem)
-    
-    # prepare shaded topography
-    # create light source object.
-    ls = LightSource(azdeg=315, altdeg=45)
-    # shade data, creating an rgb array.
-    rgb = ls.shade(dem2, custom_cmap_dem)
-    np.save(DEM_PATH  + 'rgb.npy',rgb)
-    return
-
-def plot_map(field, win_dur, stream, inv, i, run_name):
-    # print('Mapping')
-    rgb = np.load(DEM_PATH+'rgb.npy')
-    a_cmap = my_cmap()
-    fig, ax = plt.subplots(1, constrained_layout=True, dpi=100)
-    img_xy = ax.imshow(
-        field.T,
-        interpolation="none",
-        origin="lower",
-        cmap=a_cmap,
-        #cmap=plt.get_cmap("Oranges"),
-        aspect="auto",
-        extent=[lon_min, lon_max, lat_min, lat_max],
-        vmin=0.5,
-        vmax=1,
-    )
-    ax.imshow(
-        rgb,
-        interpolation="none",
-        alpha=0.35,
-        cmap=plt.get_cmap("Greys"),
-        aspect="auto",
-        extent=[lon_min, lon_max, lat_min, lat_max],
-    )
-    # ax.add_patch(
-    #     plt.Circle((x_max, y_max), facecolor="black", edgecolor="white", radius=0.001)
-    # )  # plot max likelihood position
-    ax.set_xlabel("Longitude")
-    ax.set_ylabel("Latitude")
-    
-    itime = t0 + win_dur * i
-    ax.set_title(f"{run_name}, map view, {i} {itime}")
-    
-    # create dictionary of station metadata from station xml
-    net = {"lat": [], "lon": []}
-    for tr in stream:
-        inv_sel = inv.select(station=tr.stats.station)
-        net["lat"].append(inv_sel[0][0].latitude)
-        net["lon"].append(inv_sel[0][0].longitude)
-    for x, y in zip(net["lon"], net["lat"]):  # plot stations
-        triangle = RegularPolygon(
-            (x, y), facecolor="white", edgecolor="black", numVertices=3, radius=0.0045
-        )
-        ax.add_patch(triangle)
-    plt.colorbar(img_xy).set_label("Likelihood")
-    fig.savefig(FIG_PATH+ f'{run_name}/SNi{i}')
-    return fig, ax
-
-def plot_depth(xz, yz, i, run_name, beam):
-    # plot depth views
-    fig = plt.figure(figsize=(12, 7))
-    a_cmap = my_cmap()
-    dem_x, dem_y = dem_extras(beam, i)
-    ax1 = fig.add_subplot(2,1,1)
-    
-    img_xz = ax1.imshow(
-        xz.T,
-        interpolation="none",
-        origin="upper",
-        cmap=a_cmap,
-        aspect="auto",
-        extent=[lon_min, lon_max, depth_max, depth_min],
-        vmin=0.5,
-    )
-    ax1.fill_between(
-        np.linspace(lon_min, lon_max, len(dem_x)),
-        depth_min,
-        dem_x,
-        facecolor="w",
-        edgecolor="k",
-        lw=0.4,
-    )  # crop out data above topo
-    ax1.set_xlabel("Longitude")
-    ax1.set_ylabel("Depth (km)")
-    ax1.set_title("Likelihood location, depth view")
-    fig.colorbar(img_xz).set_label("Likelihood")
-    
-    ax2 = fig.add_subplot(2,1,2)
-    img_yz = ax2.imshow(
-        yz.T,
-        interpolation="none",
-        origin="upper",
-        cmap=a_cmap,
-        aspect="auto",
-        extent=[lat_min, lat_max, depth_max, depth_min],
-        vmin=0.5,
-    )
-    ax2.fill_between(
-        np.linspace(lat_min, lat_max, len(dem_y)),
-        depth_min,
-        dem_y,
-        facecolor="w",
-        edgecolor="k",
-        lw=0.4,
-    )  # crop out data above topo
-    ax2.set_xlabel("Latitude")
-    ax2.set_ylabel("Depth (km)")
-    fig.colorbar(img_yz).set_label("Likelihood")
-    os.makedirs(FIG_PATH + run_name + '/Depth', exist_ok=True)
-    fig.savefig(FIG_PATH+ f'{run_name}/Depth/SNi{i}')
-    return 
-
-def corr_and_plot(low, high, win, av, ov, sta_array, name, norm, test=False):
-    os.makedirs(FIG_PATH + name, exist_ok=True)
-    print(low, high, win, av, ov, sta_array, name)
-    st, inv = get_streams(sta_array)
-    print(st)
-    stream_out = stream_pre_process(st, low, high, win, av, ov)
-    correlation = calc_correl(stream_out, win, av)
-    nwin = correlation.nwin()
-    beam, df = calc_beam(stream_out, correlation,low, high, sigma=20, test=test)
-    df.to_csv(FIG_PATH + name + '/max.csv')
-    with open(FIG_PATH + name +'/' + 'info.txt', 'w') as f:
-        f.write(f'Nwin {nwin}\n')
-        f.write(f'Run {name}\n')
-        f.write(f'Low {low}\n')
-        f.write(f'High {high}\n')
-        f.write(f'Window_sec {win}\n')
-        f.write(f'Avgerage {av}\n')
-        f.write(f'Overlap {ov}\n')
-        f.write(f'Stations {str(sta_array)}\n')
-        f.write(f'Norm {norm}\n')
-    for i in range(nwin):
-        fieldxy, xz, yz = get_field(beam, i, norm)
-        plot_map(fieldxy, tdur/nwin,stream_out, inv, i, name)
-        try:
-            
-            plot_depth(xz, yz, i, name, beam)
-        except:
-            with open(FIG_PATH + name +'/' + 'info.txt', 'w') as f:
-                f.write('I screwed up the depth figure\n')
-            
-    return name
-
-'''
-Run0 - 0.5, 10, 60,30,0.5
-Run1 - 0.5, 10, 60,30,0.75
-Run2 - 0.5, 10, 60,10,0.5
-Run3 - 0.5, 10, 120,30,0.5
-Run4 - 0.5, 10, 180,30,0.5
-
-'''
 
